@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HP Bar com Firebase</title>
+  <style>
+    body {
+      background-color: #191919;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      flex-direction: column;
+      gap: 25px;
+    }
+    .bar-title {
+      color: #fff;
+      font-weight: bold;
+      text-align: center;
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    .bar-container {
+      position: relative;
+      width: 300px;
+      height: 30px;
+      background-color: #191919;
+      border: 2px solid #fff;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      width: 0;
+      transition: width 0.3s, background-color 0.3s;
+      z-index: 1;
+    }
+    .bar.hp { background-color: rgb(182, 36, 36); }
+    .bar.alma { background-color: rgb(77, 182, 255); }
+    .bar.sanidade { background-color: rgb(186, 85, 211); }
+    .bar-input {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px;
+      border: none;
+      background: none;
+      color: #fff;
+      font-weight: bold;
+      text-align: center;
+      z-index: 2;
+      font-size: 16px;
+      transition: opacity 0.3s;
+    }
+    .arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #fff;
+      cursor: pointer;
+      z-index: 3;
+      user-select: none;
+    }
+    .arrow.left-single { left: 30px; font-size: 28px; }
+    .arrow.right-single { right: 30px; font-size: 28px; }
+    .arrow.left-double { left: 5px; font-size: 28px; }
+    .arrow.right-double { right: 5px; font-size: 28px; }
+    .dead-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+      display: none;
+      z-index: 4;
+    }
+  </style>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyB3g9cW1262DtgjD-t55iNCM2yYQf6ctTg",
+      authDomain: "hp-bar-5337b.firebaseapp.com",
+      databaseURL: "https://hp-bar-5337b-default-rtdb.firebaseio.com",
+      projectId: "hp-bar-5337b",
+      storageBucket: "hp-bar-5337b.appspot.com",
+      messagingSenderId: "891062479752",
+      appId: "1:891062479752:web:a94ee1b9ba5ddbb826683d",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+  </script>
+</head>
+<body>
+
+  <div>
+    <div class="bar-title">PONTOS DE VIDA</div>
+    <div class="bar-container">
+      <div class="bar hp" id="hp-bar"></div>
+      <div class="arrow left-single" onclick="changeHP(-1)">‹</div>
+      <div class="arrow right-single" onclick="changeHP(1)">›</div>
+      <div class="arrow left-double" onclick="changeHP(-5)">«</div>
+      <div class="arrow right-double" onclick="changeHP(5)">»</div>
+      <input type="text" id="hp-input" class="bar-input" value="0/0" oninput="updateHP(this.value)" />
+      <div class="dead-message" id="dead-message">MORTO</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="bar-title">ALMA</div>
+    <div class="bar-container">
+      <div class="bar alma" id="alma-bar"></div>
+      <div class="arrow left-single" onclick="changeBar('alma', -1)">‹</div>
+      <div class="arrow right-single" onclick="changeBar('alma', 1)">›</div>
+      <div class="arrow left-double" onclick="changeBar('alma', -5)">«</div>
+      <div class="arrow right-double" onclick="changeBar('alma', 5)">»</div>
+      <input type="text" id="alma-input" class="bar-input" value="0/0" oninput="updateBar('alma', this.value)" />
+    </div>
+  </div>
+
+  <div>
+    <div class="bar-title">SANIDADE</div>
+    <div class="bar-container">
+      <div class="bar sanidade" id="sanidade-bar"></div>
+      <div class="arrow left-single" onclick="changeBar('sanidade', -1)">‹</div>
+      <div class="arrow right-single" onclick="changeBar('sanidade', 1)">›</div>
+      <div class="arrow left-double" onclick="changeBar('sanidade', -5)">«</div>
+      <div class="arrow right-double" onclick="changeBar('sanidade', 5)">»</div>
+      <input type="text" id="sanidade-input" class="bar-input" value="0/0" oninput="updateBar('sanidade', this.value)" />
+    </div>
+  </div>
+
+  <script>
+    function getPageId() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("page");
+    }
+
+    const personagemId = getPageId();
+    if (!personagemId) {
+      alert("Nenhum 'page' na URL. Ex: ?page=aurora");
+      throw new Error("Sem ID da página");
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      db.ref("hp/" + personagemId).on("value", (snap) => {
+        if (snap.val()) {
+          document.getElementById("hp-input").value = snap.val();
+          updateHP(snap.val(), false);
+        }
+      });
+
+      db.ref("alma/" + personagemId).on("value", (snap) => {
+        if (snap.val()) {
+          document.getElementById("alma-input").value = snap.val();
+          updateBar("alma", snap.val(), false);
+        }
+      });
+
+      db.ref("sanidade/" + personagemId).on("value", (snap) => {
+        if (snap.val()) {
+          document.getElementById("sanidade-input").value = snap.val();
+          updateBar("sanidade", snap.val(), false);
+        }
+      });
+    });
+
+    function updateHP(value, salvar = true) {
+      const [current, max] = value.split("/").map(Number);
+      const bar = document.getElementById("hp-bar");
+      const input = document.getElementById("hp-input");
+      const dead = document.getElementById("dead-message");
+
+      if (!isNaN(current) && !isNaN(max) && max > 0) {
+        if (salvar) db.ref("hp/" + personagemId).set(value);
+        const perc = (current / max) * 100;
+        bar.style.width = Math.max(0, perc) + "%";
+
+        if (current <= 0) {
+          if (current <= max * -0.5) {
+            bar.style.backgroundColor = "black";
+            dead.style.display = "block";
+            input.style.opacity = "0";
+          } else {
+            bar.style.backgroundColor = "black";
+            dead.style.display = "none";
+            input.style.opacity = "1";
+          }
+        } else if (perc > 50) {
+          bar.style.backgroundColor = "rgb(182, 36, 36)";
+          dead.style.display = "none";
+          input.style.opacity = "1";
+        } else {
+          bar.style.backgroundColor = "rgb(121, 26, 26)";
+          dead.style.display = "none";
+          input.style.opacity = "1";
+        }
+      }
+    }
+
+    function changeHP(amount) {
+      const input = document.getElementById("hp-input");
+      let [current, max] = input.value.split("/").map(Number);
+      if (!isNaN(current) && !isNaN(max) && max > 0) {
+        current = Math.max(max * -0.5, current + amount);
+        input.value = `${current}/${max}`;
+        updateHP(input.value);
+      }
+    }
+
+    function updateBar(tipo, value, salvar = true) {
+      const [current, max] = value.split("/").map(Number);
+      const bar = document.getElementById(`${tipo}-bar`);
+      const input = document.getElementById(`${tipo}-input`);
+      if (!isNaN(current) && !isNaN(max) && max > 0) {
+        if (salvar) db.ref(`${tipo}/${personagemId}`).set(value);
+        const perc = (current / max) * 100;
+        bar.style.width = Math.max(0, perc) + "%";
+      } else {
+        bar.style.width = "0%";
+      }
+    }
+
+    function changeBar(tipo, amount) {
+      const input = document.getElementById(`${tipo}-input`);
+      let [current, max] = input.value.split("/").map(Number);
+      if (!isNaN(current) && !isNaN(max) && max > 0) {
+        current = Math.max(0, Math.min(max, current + amount));
+        input.value = `${current}/${max}`;
+        updateBar(tipo, input.value);
+      }
+    }
+  </script>
+</body>
+</html>
